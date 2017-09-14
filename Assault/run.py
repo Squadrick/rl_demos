@@ -174,6 +174,39 @@ def wrap_deepmind(env, episode_life=True, clip_rewards=True):
 env = gym.make("Assault-v0").env
 env = wrap_deepmind(env)
 env = FrameStack(env, 4)
+human_agent_action = 0
+human_wants_restart = False
+human_sets_pause = False
+flag = True
+
+def get_right_action(key):
+    if key == 1: return 6
+    if key == 2: return 4
+    if key == 3: return 2
+    if key == 4: return 3
+    return key
+
+def key_press(key, mod):
+    global human_agent_action, human_wants_restart, human_sets_pause, flag
+    if key==0xff0d: human_wants_restart = True
+    if key==32: human_sets_pause = not human_sets_pause
+    a = int(key - ord('0'))
+    a = get_right_action(a)
+    if a == 0: flag = not flag
+    if a<0 or a >= env.action_space.n: return
+    human_agent_action = a
+
+def key_release(key, mod):
+    global human_agent_action
+    a = int(key - ord('0'))
+    a = get_right_action(a)
+    if a<=0 or a >= env.action_space.n: return
+    if human_agent_action == a:
+        human_agent_action = 0
+
+env.render()
+env.unwrapped.viewer.window.on_key_press = key_press
+env.unwrapped.viewer.window.on_key_release = key_release 
 
 with tf.Session() as sess:
     saver = tf.train.import_meta_graph("./DeepDrive - MeanRew: 30.890000-3001.meta")
@@ -184,12 +217,22 @@ with tf.Session() as sess:
     actions = graph.get_tensor_by_name("pi/add_1:0")
     action = tf.argmax(input = actions, name = "action", axis = 1)
     c_rew = 0
-    done = False
-    observation = env.reset()
 
-    while not done:
-        observation = np.expand_dims(observation, axis = 0)
-        ac = sess.run([action], feed_dict = {ob : observation})
-        observation, rew, done, info = env.step(ac)
-        env.render()
-        c_rew += rew
+    while True:
+        observation = env.reset()
+        done = False
+        while not done:
+            observation = np.expand_dims(observation, axis = 0)
+            ac = sess.run([action], feed_dict = {ob : observation})
+            a = human_agent_action 
+            if flag:
+                observation, rew, done, info = env.step(ac)
+            else:
+                observation, rew, done, info = env.step(a)
+            env.render()
+
+            if human_wants_restart: break
+            while human_sets_pause:
+                env.render()
+                import time
+                time.sleep(0.1)
