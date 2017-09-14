@@ -4,6 +4,8 @@ import numpy as np
 from PIL import Image
 from gym import spaces
 from collections import deque
+import cv2
+import numpy as np
 
 class NoopResetEnv(gym.Wrapper):
     def __init__(self, env, noop_max=30):
@@ -230,6 +232,10 @@ with tf.Session() as sess:
             else:
                 observation, rew, done, info = env.step(a)
             env.render()
+            r = env.render('rgb_array')
+            r = cv2.resize(r, None, fx=3, fy=3)
+            cv2.imshow("Assault",r)
+            cv2.waitKey(1)
 
             if human_wants_restart: break
             while human_sets_pause:
